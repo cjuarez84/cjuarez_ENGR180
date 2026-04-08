@@ -58,3 +58,4 @@ transformedMatrix = transformedMatrix.T
 # remove the 4th coordinate
 transformedMatrix = transformedMatrix[:,:3]/ transformedMatrix[:,3,np.newaxis]
 print(transformedMatrix)
+#new
