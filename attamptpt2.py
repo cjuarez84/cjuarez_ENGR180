@@ -25,14 +25,76 @@ def sphere_intersect(rayO, rayD, sphereS, sphereR):
     else:
         return t0
 
+#this will have to have a corner point and two edge vectors (u,v) and the cross product  of these two will be the normal
+#have to find where the ray hits the plane that has the rectangle
+#then have to see if u and v are within bounds
+##added rectangle intersections
+def rectangle_intersect(rayO, rayD, rectangle):
+    N = rectangle['normal']
+    denom = np.dot(rayD, N)
+    if abs(denom) < 1e-6:
+        return np.inf
+    t = np.dot(rectangle['corner'] - rayO, N) / denom
+    if t< 1e-4:
+        return np.inf
+
+ #hit points
+    P = rayO + rayD * t
+    d = P - rectangle['corner']
+
+     # projection onto each edge direction
+    u_hat = rectangle['u'] / np.linalg.norm(rectangle['u'])
+    v_hat = rectangle['v'] / np.linalg.norm(rectangle['v'])
+    proj_u = np.dot(d, u_hat)
+    proj_v = np.dot(d, v_hat)
+    u_len = np.linalg.norm(rectangle['u'])
+    v_len = np.linalg.norm(rectangle['v'])
+
+    #make sure that it stays within the frame
+    if 0 <= proj_u <= u_len and 0 <= proj_v <= v_len:
+        return t
+    return np.inf
+
+#now we do it all over with a triangle
+#triangles have three vertices apparently so we do v0, v1, v2
+def triangle_intersect(rayO, rayD, tri):
+    v0, v1, v2, = tri['v0'], tri['v1'], tri['v2']
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+    h = np.cross(rayD, edge2)
+    a = np.dot(edge1, h)
+    if abs(a) < 1e-6:
+        return np.inf
+    f = 1.0 / a
+    s = rayO - v0
+    u = f * np.dot(s, h)
+    if u < 0.0 or u >1.0:
+        return np.inf
+    q = np.cross(s, edge1)
+    v = f * np.dot(rayD, q)
+    if v < 0.0 or u + v  > 1.0:
+        return np.inf
+    t = f * np.inf
+    if t < 1e-4:
+        return np.dot(edge2, q)
+    return t
+
 
 # Find the first point of intersection with the scene
+#update the scence so that we can actually look at multiple types of objects
 def trace_ray(rayO, rayD, scene):
     t_min = np.inf
     nearest_object = None
-    for obj in scene:
-        t = sphere_intersect(rayO, rayD, obj['position'], obj['radius'])
-        if t < t_min:
+    for obj in scene: #we just add each type into this
+        if obj['type'] == 'sphere':
+            t = sphere_intersect(rayO, rayD, obj['position'], obj['radius'])
+        elif obj['type'] == 'triangle':
+            t = triangle_intersect(rayO, rayD, obj)
+        elif obj['type'] == 'rectangle':
+            t = rectangle_intersect(rayO, rayD, obj)
+        else:
+            t = np.inf
+        if t < t_min: #this stays the samme
             t_min = t
             nearest_object = obj
     return nearest_object, t_min
@@ -86,13 +148,53 @@ pixel_positions = np.array([
 # pass through the transformation matrix
 world_coords = applyMatrix(pixel_positions, tmx)
 
+#okay we build the rectangle
+rectangle_corner = np.array([-0.85, -0.55, 1.2])
+rectangle_u = np.array([0.55, 0.0, 0.0])
+rectangle_v = np.array([0.0, 0.45, 0.0])
+rectangle_normal = np.cross(rectangle_u, rectangle_v)
+rectangle_normal /= np.linalg.norm(rectangle_normal)
+
+rectangle = {
+    'type': 'rectangle',
+    'corner': rectangle_corner,
+    'u': rectangle_u,
+    'v': rectangle_v,
+    'normal': rectangle_normal,
+    'color': np.array([1.0, 0.85,  0.1]),
+    'reflection': 0.3
+}
+
+#repeat for triangle
+#remember theres three vertices for this one
+tri_v0 = np.array([0.25, 0.55, 1.0])
+tri_v1 = np.array([0.75, 0.55, 1.0])
+tri_v2 = np.array([0.50, 0.95, 1.0])
+tri_edge1 = tri_v1 - tri_v0
+tri_edge2 = tri_v2 - tri_v0
+tri_normal = np.cross(tri_edge1, tri_edge2)
+tri_normal /= np.linalg.norm(tri_normal)
+
+#build again
+triangle = {
+    'type': 'triangle',
+    'v0': tri_v0,
+    'v1': tri_v1,
+    'v2': tri_v2,
+    'normal': tri_normal,
+    'color': np.array([0.6, 0.1, 0.9]),
+    'reflection': 0.4,
+}
+
 # Scene objects: spheres (position, radius, color, material properties)
+#have to update the scene to add the new objects
 scene = [
-    {'position': world_coords[0], 'radius': 0.25, 'color': np.array([1., 0., 0.]), 'reflection': 0.5},
-    {'position': world_coords[1], 'radius': 0.25, 'color': np.array([0., 1., 0.]), 'reflection': 0.8},
-    {'position': world_coords[2], 'radius': 0.25, 'color': np.array([0., 0., 1.]), 'reflection': 0.1},
-    {'position': np.array([0., -10, 0.]), 'radius': 200., 'color': np.array([0.8, 0.8, 0.8]), 'reflection': 0.1}
-    # Ground
+    {'type': 'sphere', 'position': world_coords[0], 'radius': 0.25, 'color': np.array([1., 0., 0.]), 'reflection': 0.5},
+    {'type': 'sphere', 'position': world_coords[1], 'radius': 0.25, 'color': np.array([0., 1., 0.]), 'reflection': 0.8},
+    {'type': 'sphere', 'position': world_coords[2], 'radius': 0.25, 'color': np.array([0., 0., 1.]), 'reflection': 0.1},
+    {'type': 'sphere', 'position': np.array([0., -10, 0.]), 'radius': 200., 'color': np.array([0.8, 0.8, 0.8]), 'reflection': 0.1}, # Ground
+    rectangle,
+    triangle,
 ]
 
 pos1 = np.array([[250, 250, 2.]])
@@ -122,9 +224,14 @@ for i, y in enumerate(np.linspace(-1., 1., height)):
 
             # Point of intersection
             M = rayO + rayD * t_min
-            # Normal at the intersection point
-            N = M - nearest_object['position']
-            N /= np.linalg.norm(N)
+            # Normal at the intersection point has to be updated for the new objects
+            if nearest_object['type'] == 'sphere':
+                N = M - nearest_object['position']
+                N /= np.linalg.norm(N)
+            else:
+                N = nearest_object['normal'].copy()
+                if np.dot(N, rayD) > 0: #flip
+                    N= -N
 
             # Direction from intersection point to light
             L = light_position - M
