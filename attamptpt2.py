@@ -24,55 +24,18 @@ def sphere_intersect(rayO, rayD, sphereS, sphereR):
         return t1  # Return second intersection if first is behind camera
     else:
         return t0
-    #Add the parameters to look for a triangle
-def triangle_intersect(rayO, rayD, v0, v1, v2):
-    #v0-3 are the vertices of the triangle
-    edge1 = v1 - v0
-    edge2 = v2 - v0
-    h = np.cross(rayD, edge2)
-    a = np.dot(edge1, h)
-    if -1e-6 < a <1e-6: # rays are parallel to triangle
-        return np.inf, None
-    f = 1.0 / a
-    s = rayO - v0
-    u = f * np.dot(s, h)
-    if u < 0.0 or u > 1.0:
-        return np.inf, None
-    q = np.cross(s, edge1)
-    v = f * np.dot(rayD, q)
-    if v < 0.0 or u + v > 1.0:
-        return np.inf, None
-    t = f * np.dot(edge2, q)
-    if t > 1e-6:
-        # the normal is the cross product of the two edges
-        normal = np.cross(edge1, edge2)
-        normal /= np.linalg.norm(normal)
-        return t, normal
-
-    return np.inf, None
 
 
 # Find the first point of intersection with the scene
 def trace_ray(rayO, rayD, scene):
     t_min = np.inf
     nearest_object = None
-    nearest_normal = None
     for obj in scene:
-        if obj['type'] == 'sphere':
-            t = sphere_intersect(rayO, rayD, obj['position'], obj['radius'])
-            if t < t_min:
-                t_min = t
-                hit_pos= rayO + rayD * t
-                N = hit_pos - obj['position']
-                nearest_normal = N / np.linalg.norm(N)
-                nearest_object = obj
-        elif obj['type'] == 'triangle':
-            t, N = triangle_intersect(rayO, rayD, obj['v0'], obj['v1'], obj['v2'])
-            if t < t_min:
-                t_min = t
-                nearest_object = obj
-                nearest_normal = N
-    return nearest_object, t_min, nearest_normal
+        t = sphere_intersect(rayO, rayD, obj['position'], obj['radius'])
+        if t < t_min:
+            t_min = t
+            nearest_object = obj
+    return nearest_object, t_min
 
 
 def applyMatrix(vertices, transformation_matrix):
@@ -119,33 +82,18 @@ pixel_positions = np.array([
     [450, 50, 0.5], #green sphere
     [250, 250, 0.5], # blue sphere
 ])
-# rectangle on the ground (two triangles)
-v0 = np.array([-0.5, -0.5, 0.5])
-v1 = np.array([0.5, -0.5, 0.5])
-v2 = np.array([0.5, -0.5, 1.5])
-v3 = np.array([-0.5, -0.5, 1.5])
+
 # pass through the transformation matrix
 world_coords = applyMatrix(pixel_positions, tmx)
 
 # Scene objects: spheres (position, radius, color, material properties)
 scene = [
-    {'type': 'sphere', 'position': world_coords[0], 'radius': 0.25, 'color': np.array([1., 0., 0.]), 'reflection': 0.5},
-    {'type': 'sphere', 'position': world_coords[1], 'radius': 0.25, 'color': np.array([0., 1., 0.]), 'reflection': 0.8},
-    {'type': 'sphere', 'position': world_coords[2], 'radius': 0.25, 'color': np.array([0., 0., 1.]), 'reflection': 0.1},
-    {'type': 'sphere', 'position': np.array([0., -10, 0.]), 'radius': 200., 'color': np.array([0.8, 0.8, 0.8]), 'reflection': 0.1},
+    {'position': world_coords[0], 'radius': 0.25, 'color': np.array([1., 0., 0.]), 'reflection': 0.5},
+    {'position': world_coords[1], 'radius': 0.25, 'color': np.array([0., 1., 0.]), 'reflection': 0.8},
+    {'position': world_coords[2], 'radius': 0.25, 'color': np.array([0., 0., 1.]), 'reflection': 0.1},
+    {'position': np.array([0., -10, 0.]), 'radius': 200., 'color': np.array([0.8, 0.8, 0.8]), 'reflection': 0.1}
+    # Ground
 ]
-
-# Rectangle/Base of Pyramid (Yellow)
-scene.append({'type': 'triangle', 'v0': v0, 'v1': v1, 'v2': v2, 'color': np.array([1, 1, 0]), 'reflection': 0.2})
-scene.append({'type': 'triangle', 'v0': v0, 'v1': v2, 'v2': v3, 'color': np.array([1, 1, 0]), 'reflection': 0.2})
-
-# Pyramid Sides (Cyan)
-apex = np.array([0.0, 0.5, 1.0])
-scene.append({'type': 'triangle', 'v0': v0, 'v1': v1, 'v2': apex, 'color': np.array([0, 1, 1]), 'reflection': 0.2})
-scene.append({'type': 'triangle', 'v0': v1, 'v1': v2, 'v2': apex, 'color': np.array([0, 1, 1]), 'reflection': 0.2})
-scene.append({'type': 'triangle', 'v0': v2, 'v1': v3, 'v2': apex, 'color': np.array([0, 1, 1]), 'reflection': 0.2})
-scene.append({'type': 'triangle', 'v0': v3, 'v1': v0, 'v2': apex, 'color': np.array([0, 1, 1]), 'reflection': 0.2})
-
 
 pos1 = np.array([[250, 250, 2.]])
 
@@ -168,12 +116,15 @@ for i, y in enumerate(np.linspace(-1., 1., height)):
         rayO, rayD = camera_position, ray_direction
 
         for depth in range(depth_max):
-            nearest_object, t_min, N = trace_ray(rayO, rayD, scene)
+            nearest_object, t_min = trace_ray(rayO, rayD, scene)
             if nearest_object is None:
                 break  # Ray missed all objects
 
             # Point of intersection
             M = rayO + rayD * t_min
+            # Normal at the intersection point
+            N = M - nearest_object['position']
+            N /= np.linalg.norm(N)
 
             # Direction from intersection point to light
             L = light_position - M
