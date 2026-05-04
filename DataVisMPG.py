@@ -15,7 +15,7 @@ plt.title('Impact of Vehicle Weight on Fuel Efficiency')
 plt.xlabel('Weight (lbs)')
 plt.ylabel('Miles per Gallon (MPG)')
 plt.grid(True, linestyle='--', alpha=0.7)
-plt.savefig('weight_vs_mpg.png')
+#plt.savefig('weight_vs_mpg.png')
 plt.show()
 
 #Visualization 2 box plot cyls vs mpg
@@ -24,7 +24,7 @@ sns.boxplot(x='Cylinders', y='MPG', data = df, palette='Set2')
 plt.title('MPG Distribution by Number of Cylinders')
 plt.xlabel('Number of Cylinders')
 plt.ylabel('Miles per Gallon (MPG)')
-plt.savefig('cuylinders_vs_mpg.png')
+#plt.savefig('cylinders_vs_mpg.png')
 plt.show()
 
 print(df.head())
